@@ -3,12 +3,16 @@ package com.halil.ozel.exoplayerdrm
 import android.app.Activity
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
 import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.SimpleExoPlayer
 import com.google.android.exoplayer2.source.dash.DashChunkSource
 import com.google.android.exoplayer2.source.dash.DashMediaSource
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource
+import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
 import com.google.android.exoplayer2.util.MimeTypes
@@ -21,6 +25,7 @@ class MainActivity : Activity() {
 
     private lateinit var playerView: ExoPlayer
     private lateinit var binding: ActivityMainBinding
+    private lateinit var trackSelector: DefaultTrackSelector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,11 +38,25 @@ class MainActivity : Activity() {
 
     private fun initializePlayer() {
 
-        val url = "https://bitmovin-a.akamaihd.net/content/art-of-motion_drm/mpds/11331.mpd"
-        val drmLicenseUrl = "https://proxy.uat.widevine.com/proxy?provider=widevine_test"
+        val url = "https://chromecast.cvattv.com.ar/live/c3eds/AmericaTV/SA_Live_dash_enc_2A/AmericaTV.mpd"
+        val drmLicenseUrl = "https://wv-client.cvattv.com.ar/?deviceId=Y2MzZWViN2QwNDZjNjZkZTQyNmE4NmE1ZGMxY2JmNWY="
         val drmSchemeUuid = C.WIDEVINE_UUID // DRM Type
         val userAgent = "ExoPlayer-Drm"
         // val userAgent = "userAgent"
+
+        trackSelector = DefaultTrackSelector(this)
+        var exoPlayer = ExoPlayer.Builder(this).setTrackSelector(trackSelector).build()
+
+        val handler = Handler()
+        val adaptiveTrackSelection = AdaptiveTrackSelection.Factory()
+        trackSelector = DefaultTrackSelector(this, adaptiveTrackSelection)
+        trackSelector.buildUponParameters().setRendererDisabled(C.TRACK_TYPE_TEXT, true).build()
+
+        val bandwidthMeter = DefaultBandwidthMeter.Builder(this).build()
+
+        bandwidthMeter.addEventListener(handler) { elapsedMs, bytesTransferred, _ ->
+//            binding.textView.text = (((bytesTransferred * 8).toDouble() / (elapsedMs / 1000)) / 1000).toString()
+        }
 
         val defaultHttpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
@@ -69,6 +88,7 @@ class MainActivity : Activity() {
 
         // Prepare the player.
         playerView = ExoPlayer.Builder(this)
+            .setTrackSelector(trackSelector)
             .setSeekForwardIncrementMs(10000)
             .setSeekBackIncrementMs(10000)
             .build()
@@ -76,6 +96,16 @@ class MainActivity : Activity() {
         binding.playerView.player = playerView
         playerView.setMediaSource(dashMediaSource, true)
         playerView.prepare()
+    }
+
+    private fun showDialog() {
+        val trackSelector = TrackSelectionDialogBuilder(
+            this,
+            "Select Track",
+            trackSelector,
+            0
+        ).build()
+        trackSelector.show()
     }
 
     override fun onPause() {
